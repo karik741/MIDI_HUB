@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MIDI конвертер</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.2/xlsx.full.min.js"></script>
+    <style>
+        table.iksweb{text-decoration: none;border-collapse:collapse;width:100%;text-align:left;}
+        table.iksweb th{font-weight:normal;font-size:16px; color:#ffffff;background-color:#348f00;}
+        table.iksweb td{font-size:14px;color:#000000;}
+        table.iksweb td,table.iksweb th{white-space:pre-wrap;padding:12px 20px;line-height:14px;vertical-align: middle;border: 1px solid #348f00;}
+        table.iksweb tr:hover{background-color:#f9fafb}
+        table.iksweb tr:hover td{color:#354251;cursor:default;}
+    </style>
+</head>
+<body>
+    <h1>MIDI конвертер</h1>
+    <form id="uploadForm" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="file" name="midi_file" required>
+        <button type="submit">Конветировать</button>
+    </form>
+    <h2 id="convert" style="display: none;">Конвертировано</h2>
+    <div id="convertedTracks"></div>
+    <div id="showButton" style="display: none;"><button onclick="exportTableToExcel('tabs', 'export')">Экспорт в Excel</button></div>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        function exportTableToExcel(tableID, filename) {
+            // Получите ссылку на таблицу
+            console.log(tableID);
+            let table = document.getElementById(tableID);
+            // Преобразуйте таблицу в двумерный массив данных
+            let data = [];
+            for (let i = 0; i < table.rows.length; i++) {
+                let row = table.rows[i];
+                data[i] = [];
+                for (let j = 0; j < row.cells.length; j++) {
+                    data[i][j] = row.cells[j].innerText;
+                }
+            }
+
+            // Создайте книгу и лист
+            let workbook = XLSX.utils.book_new();
+            let sheet = XLSX.utils.aoa_to_sheet(data);
+            XLSX.utils.book_append_sheet(workbook, sheet, 'Sheet1');
+
+            // Создайте Excel-файл и запустите скачивание
+            let file = XLSX.write(workbook, { type: 'binary', bookType: 'xlsx' });
+            let blob = new Blob([s2ab(file)], { type: 'application/octet-stream' });
+            let link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename + '.xlsx';
+            link.click();
+        }
+
+        function s2ab(s) {
+            let buf = new ArrayBuffer(s.length);
+            let view = new Uint8Array(buf);
+            for (let i = 0; i < s.length; i++) {
+                view[i] = s.charCodeAt(i) & 0xff;
+            }
+            return buf;
+        }
+        $(document).ready(function () {
+
+            $('#uploadForm').submit(function (event) {
+                event.preventDefault();
+                let formData = new FormData(this);
+                $.ajax({
+                    url: '{% url "upload_midi" %}',
+                    type: 'POST',
+                    data: formData,
+                    cache: false,
+                    processData: false,
+                    contentType: false,
+                    success: function (data) {
+                        let tracksTabs = data.tracks_tabs;
+                        let minDuration = data.min_duration;
+                        let resultHtml = '<p><strong>Длительность ячейки: 1/' + minDuration + '</strong></p>';
+                        resultHtml += '<table id="tabs" class="iksweb"><tbody>'
+                        tracksTabs.forEach(function (track, index) {
+                            resultHtml += '<tr> <td>' + (index + 1) + ':</td> ' + track + '</tr>';
+                        });
+                        resultHtml += '</tbody></table>'
+                        $('#convertedTracks').html(resultHtml);
+                        $('#showButton').show();
+                        $('#convert').show();
+                    },
+                    error: function (xhr, textStatus, errorThrown) {
+                        console.log("Error");
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
